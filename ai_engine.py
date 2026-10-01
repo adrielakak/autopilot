@@ -53,9 +53,9 @@ class SimulationManager:
         # Environnement physique (Intersection en croix)
         self.map = IntersectionMap(size=800.0, road_width=140.0)
 
-        # Position initiale de l'IA : Voie Sud montant vers le Nord
-        self.start_x = self.map.center + (self.map.road_width / 4.0)  # ~435.0
-        self.start_y = 750.0
+        # Position initiale de l'IA : Voie Gauche du circuit (allant vers le haut)
+        self.start_x = 110.0
+        self.start_y = 500.0
         self.start_angle = -math.pi / 2.0  # Orientée vers le haut (Nord)
 
         self.agents: List[AgentState] = []
@@ -143,17 +143,18 @@ class SimulationManager:
                 # Intersection avec la ligne de checkpoint
                 if segment_intersection(prev_pos, current_pos, cp.p1, cp.p2) is not None:
                     agent.checkpoints_passed += 1
-                    agent.fitness += 10.0  # +10 pts par checkpoint franchi
+                    agent.fitness += 100.0  # +100 pts par checkpoint franchi (récompense massive)
                     agent.last_progress_tick = agent.ticks_alive
 
-            # Récompense douce pour le mouvement avant maîtrisé
+            # Récompense très faible pour le mouvement avant, pour initier l'apprentissage sans exploit
             if car.speed > 0:
-                agent.fitness += car.speed * 0.05
+                agent.fitness += car.speed * 0.01
 
-            # Pénalité de stagnation : élimination si l'agent n'a pas progressé depuis 250 ticks
-            # (sauf s'il est en train de marquer l'arrêt dans la zone STOP)
-            if not is_currently_in_stop and (agent.ticks_alive - agent.last_progress_tick > 250):
+            # Pénalité de stagnation stricte (inclut le temps dans la zone STOP)
+            # 300 ticks max (5 secondes) pour atteindre le prochain checkpoint
+            if agent.ticks_alive - agent.last_progress_tick > 300:
                 agent.alive = False
+                agent.fitness -= 50.0 # Pénalité pour avoir tourné en rond ou bloqué
 
         # Si toute la population est morte ou stagnante, passage à la génération suivante
         if all_dead:

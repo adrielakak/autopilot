@@ -137,69 +137,66 @@ class Checkpoint:
 
 class IntersectionMap:
     """
-    Environnement complet en 2D : Intersection en croix avec bordures de route,
-    zones STOP et flux de trafic NPC.
+    Environnement complet en 2D : Circuit fermé (boucle) avec une zone STOP et du trafic.
     """
     def __init__(self, size: float = 800.0, road_width: float = 140.0):
         self.size = size
         self.road_width = road_width
         self.center = size / 2.0
 
-        # Coordonnées des bordures de l'intersection
-        r_min = self.center - road_width / 2.0  # ex: 330.0
-        r_max = self.center + road_width / 2.0  # ex: 470.0
-
         self.walls: List[Wall] = [
-            # Coin Haut-Gauche
-            Wall((0.0, r_min), (r_min, r_min)),
-            Wall((r_min, r_min), (r_min, 0.0)),
-            # Coin Haut-Droit
-            Wall((r_max, 0.0), (r_max, r_min)),
-            Wall((r_max, r_min), (size, r_min)),
-            # Coin Bas-Droit
-            Wall((size, r_max), (r_max, r_max)),
-            Wall((r_max, r_max), (r_max, size)),
-            # Coin Bas-Gauche
-            Wall((r_max, size), (r_max, size)), # Bord
-            Wall((r_min, size), (r_min, r_max)),
-            Wall((r_min, r_max), (0.0, r_max)),
+            # Murs extérieurs (octogone)
+            Wall((140.0, 40.0), (660.0, 40.0)),   # Haut
+            Wall((660.0, 40.0), (760.0, 140.0)),  # Diagonale Haut-Droit
+            Wall((760.0, 140.0), (760.0, 660.0)), # Droit
+            Wall((760.0, 660.0), (660.0, 760.0)), # Diagonale Bas-Droit
+            Wall((660.0, 760.0), (140.0, 760.0)), # Bas
+            Wall((140.0, 760.0), (40.0, 660.0)),  # Diagonale Bas-Gauche
+            Wall((40.0, 660.0), (40.0, 140.0)),   # Gauche
+            Wall((40.0, 140.0), (140.0, 40.0)),   # Diagonale Haut-Gauche
 
-            # Bouts de route extérieurs (limites de map)
-            Wall((0.0, r_min), (0.0, r_max)),
-            Wall((size, r_min), (size, r_max)),
-            Wall((r_min, 0.0), (r_max, 0.0)),
-            Wall((r_min, size), (r_max, size))
+            # Murs intérieurs (octogone central)
+            Wall((240.0, 180.0), (560.0, 180.0)), # Haut
+            Wall((560.0, 180.0), (620.0, 240.0)), # Diagonale Haut-Droit
+            Wall((620.0, 240.0), (620.0, 560.0)), # Droit
+            Wall((620.0, 560.0), (560.0, 620.0)), # Diagonale Bas-Droit
+            Wall((560.0, 620.0), (240.0, 620.0)), # Bas
+            Wall((240.0, 620.0), (180.0, 560.0)), # Diagonale Bas-Gauche
+            Wall((180.0, 560.0), (180.0, 240.0)), # Gauche
+            Wall((180.0, 240.0), (240.0, 180.0)), # Diagonale Haut-Gauche
         ]
 
-        # Conversion directe en liste de segments pour accélération
         self.wall_segments: List[Segment] = [(w.p1, w.p2) for w in self.walls]
 
-        # StopZone sur la voie sud (véhicules montant vers le nord)
-        # Située juste avant l'intersection : y entre 480 et 540, voie droite x entre 400 et 470
-        self.stop_zone = StopZone(x=self.center, y=r_max + 10.0, width=road_width / 2.0, height=60.0)
+        # StopZone sur la ligne droite du haut (véhicules allant vers la droite)
+        self.stop_zone = StopZone(x=300.0, y=40.0, width=60.0, height=140.0)
 
-        # Checkpoints jalonnant le trajet de test : Sud vers Nord traversant l'intersection
-        # Voie de droite (x = center + road_width/4)
-        lane_x1 = self.center
-        lane_x2 = r_max
+        # Checkpoints jalonnant le circuit complet (sens horaire, départ à gauche)
         self.checkpoints: List[Checkpoint] = [
-            Checkpoint((lane_x1, 720.0), (lane_x2, 720.0)),
-            Checkpoint((lane_x1, 620.0), (lane_x2, 620.0)),
-            Checkpoint((lane_x1, 550.0), (lane_x2, 550.0)), # Juste à l'entrée du STOP
-            Checkpoint((lane_x1, 480.0), (lane_x2, 480.0)), # Sortie du STOP
-            Checkpoint((lane_x1, 400.0), (lane_x2, 400.0)), # Milieu de l'intersection
-            Checkpoint((lane_x1, 320.0), (lane_x2, 320.0)), # Sortie d'intersection Nord
-            Checkpoint((lane_x1, 200.0), (lane_x2, 200.0)),
-            Checkpoint((lane_x1, 80.0),  (lane_x2, 80.0))   # Ligne d'arrivée
+            # Départ sur la gauche (vers le haut)
+            Checkpoint((40.0, 300.0), (180.0, 300.0)),
+            Checkpoint((40.0, 180.0), (180.0, 180.0)),
+            # Haut (vers la droite)
+            Checkpoint((240.0, 40.0), (240.0, 180.0)),
+            Checkpoint((400.0, 40.0), (400.0, 180.0)), # Après le STOP
+            Checkpoint((560.0, 40.0), (560.0, 180.0)),
+            # Droite (vers le bas)
+            Checkpoint((620.0, 240.0), (760.0, 240.0)),
+            Checkpoint((620.0, 400.0), (760.0, 400.0)),
+            Checkpoint((620.0, 560.0), (760.0, 560.0)),
+            # Bas (vers la gauche)
+            Checkpoint((560.0, 620.0), (560.0, 760.0)),
+            Checkpoint((400.0, 620.0), (400.0, 760.0)),
+            Checkpoint((240.0, 620.0), (240.0, 760.0)),
+            # Retour à gauche
+            Checkpoint((40.0, 560.0), (180.0, 560.0)),
+            Checkpoint((40.0, 450.0), (180.0, 450.0))
         ]
 
-        # Trafic transversal (Est <-> Ouest) coupant la trajectoire de l'IA
+        # Trafic transversal : "Piétons" ou véhicules traversant la ligne droite du haut
         self.traffic_cars: List[TrafficCar] = [
-            # Voie Ouest -> Est (y = center + road_width/4 = 435)
-            TrafficCar(start_x=-60.0, start_y=self.center + 35.0, angle=0.0, speed=3.2, reset_dist=size + 120.0),
-            TrafficCar(start_x=-360.0, start_y=self.center + 35.0, angle=0.0, speed=3.2, reset_dist=size + 120.0),
-            # Voie Est -> Ouest (y = center - road_width/4 = 365)
-            TrafficCar(start_x=size + 60.0, start_y=self.center - 35.0, angle=math.pi, speed=3.0, reset_dist=size + 120.0)
+            TrafficCar(start_x=380.0, start_y=-60.0, angle=math.pi/2, speed=2.5, reset_dist=400.0),
+            TrafficCar(start_x=450.0, start_y=300.0, angle=-math.pi/2, speed=2.0, reset_dist=400.0)
         ]
 
     def update_traffic(self, dt: float = 1.0):

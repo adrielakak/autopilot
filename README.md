@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-![demo](https://raw.githubusercontent.com/yourusername/autopilot/main/docs/demo.gif)
+![demo](https://raw.githubusercontent.com/adrielakak/autopilot/main/docs/demo.gif)
 
 </div>
 
@@ -119,7 +119,7 @@ Each car casts **5 rays** at angles `[-90°, -45°, 0°, +45°, +90°]`. Each ra
 ### 1. Clone
 
 ```bash
-git clone https://github.com/yourusername/autopilot.git
+git clone https://github.com/adrielakak/autopilot.git
 cd autopilot
 ```
 
@@ -210,7 +210,7 @@ Open your browser at **http://localhost:5173** and watch the evolution in real t
 | Backend | [FastAPI](https://fastapi.tiangolo.com/) · [Uvicorn](https://www.uvicorn.org/) · WebSockets |
 | Frontend | [React 19](https://react.dev/) · [TypeScript](https://typescriptlang.org/) · Canvas 2D API |
 | 3D (optional) | [Three.js](https://threejs.org/) · [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) |
-| Bundler | [Vite 8](https://vitejs.dev/) |
+| Bundler | [Vite 5](https://vitejs.dev/) |
 
 ---
 

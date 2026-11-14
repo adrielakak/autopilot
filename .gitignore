@@ -28,6 +28,7 @@ ENV/
 .eggs/
 *.egg
 .mypy_cache/
+.pytest_cache/
 .ruff_cache/
 backend/__pycache__/
 backend/venv/

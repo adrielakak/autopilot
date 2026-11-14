@@ -1,11 +1,11 @@
 import math
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Any
 
-Point = Tuple[float, float]
-Segment = Tuple[Point, Point]
+Point = tuple[float, float]
+Segment = tuple[Point, Point]
 
 
-def segment_intersection(p0: Point, p1: Point, p2: Point, p3: Point) -> Optional[Point]:
+def segment_intersection(p0: Point, p1: Point, p2: Point, p3: Point) -> Point | None:
     """
     Calcule l'intersection exacte entre deux segments 2D [p0, p1] et [p2, p3].
     Utilise les produits en croix vectoriels 2D (analytique, 0 allocation mémoire inutile).
@@ -37,6 +37,89 @@ def point_distance(p1: Point, p2: Point) -> float:
     return math.hypot(p2[0] - p1[0], p2[1] - p1[1])
 
 
+def point_to_segment_distance_sq(
+    px: float, py: float, x1: float, y1: float, x2: float, y2: float
+) -> float:
+    """Retourne le carré de la distance minimale entre un point et un segment 2D."""
+    vx = x2 - x1
+    vy = y2 - y1
+    wx = px - x1
+    wy = py - y1
+    len_sq = vx * vx + vy * vy
+    if len_sq <= 1e-12:
+        return wx * wx + wy * wy
+
+    t = (wx * vx + wy * vy) / len_sq
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
+
+    dx = wx - t * vx
+    dy = wy - t * vy
+    return dx * dx + dy * dy
+
+
+def ray_segment_intersection_dist(
+    ox: float,
+    oy: float,
+    dx: float,
+    dy: float,
+    max_dist: float,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> float | None:
+    """
+    Calcule la distance scalaire d'impact entre un rayon unitaire (ox, oy) + t*(dx, dy)
+    et le segment [(x1, y1), (x2, y2)] dans [0, max_dist], sans allocation mémoire.
+    """
+    sx = x2 - x1
+    sy = y2 - y1
+    denom = dx * sy - dy * sx
+    if abs(denom) < 1e-9:
+        return None
+
+    qx = x1 - ox
+    qy = y1 - oy
+    t = (qx * sy - qy * sx) / denom
+    if t < 0.0 or t > max_dist:
+        return None
+
+    s = (qx * dy - qy * dx) / denom
+    if 0.0 <= s <= 1.0:
+        return t
+    return None
+
+
+def circle_intersects_obb(
+    cx: float,
+    cy: float,
+    radius: float,
+    rect_cx: float,
+    rect_cy: float,
+    rect_angle: float,
+    half_w: float,
+    half_h: float,
+) -> bool:
+    """Vérifie l'intersection exacte entre un cercle et une boîte orientée (OBB)."""
+    cos_a = math.cos(rect_angle)
+    sin_a = math.sin(rect_angle)
+    dx = cx - rect_cx
+    dy = cy - rect_cy
+
+    local_x = dx * cos_a + dy * sin_a
+    local_y = -dx * sin_a + dy * cos_a
+
+    closest_x = max(-half_w, min(half_w, local_x))
+    closest_y = max(-half_h, min(half_h, local_y))
+
+    dist_x = local_x - closest_x
+    dist_y = local_y - closest_y
+    return (dist_x * dist_x + dist_y * dist_y) <= (radius * radius)
+
+
 class Wall:
     """Représente un mur statique sous forme de segment de droite intraversable."""
     def __init__(self, p1: Point, p2: Point):
@@ -62,7 +145,7 @@ class StopZone:
         self.p4 = (x, y + height)
 
         # 4 segments de bordure pour les intersections LIDAR
-        self.segments: List[Segment] = [
+        self.segments: list[Segment] = [
             (self.p1, self.p2),
             (self.p2, self.p3),
             (self.p3, self.p4),
@@ -102,7 +185,7 @@ class TrafficCar:
             self.x = self.initial_x
             self.y = self.initial_y
 
-    def get_segments(self) -> List[Segment]:
+    def get_segments(self) -> list[Segment]:
         """
         Retourne les 4 segments de la boîte englobante orientée (OBB) du véhicule NPC.
         """
@@ -144,35 +227,47 @@ class IntersectionMap:
         self.road_width = road_width
         self.center = size / 2.0
 
-        self.walls: List[Wall] = [
-            # Murs extérieurs (octogone)
-            Wall((140.0, 40.0), (660.0, 40.0)),   # Haut
-            Wall((660.0, 40.0), (760.0, 140.0)),  # Diagonale Haut-Droit
-            Wall((760.0, 140.0), (760.0, 660.0)), # Droit
-            Wall((760.0, 660.0), (660.0, 760.0)), # Diagonale Bas-Droit
-            Wall((660.0, 760.0), (140.0, 760.0)), # Bas
-            Wall((140.0, 760.0), (40.0, 660.0)),  # Diagonale Bas-Gauche
-            Wall((40.0, 660.0), (40.0, 140.0)),   # Gauche
-            Wall((40.0, 140.0), (140.0, 40.0)),   # Diagonale Haut-Gauche
-
-            # Murs intérieurs (octogone central)
-            Wall((240.0, 180.0), (560.0, 180.0)), # Haut
-            Wall((560.0, 180.0), (620.0, 240.0)), # Diagonale Haut-Droit
-            Wall((620.0, 240.0), (620.0, 560.0)), # Droit
-            Wall((620.0, 560.0), (560.0, 620.0)), # Diagonale Bas-Droit
-            Wall((560.0, 620.0), (240.0, 620.0)), # Bas
-            Wall((240.0, 620.0), (180.0, 560.0)), # Diagonale Bas-Gauche
-            Wall((180.0, 560.0), (180.0, 240.0)), # Gauche
-            Wall((180.0, 240.0), (240.0, 180.0)), # Diagonale Haut-Gauche
+        self.outer_bounds: list[Point] = [
+            (140.0, 40.0),
+            (660.0, 40.0),
+            (760.0, 140.0),
+            (760.0, 660.0),
+            (660.0, 760.0),
+            (140.0, 760.0),
+            (40.0, 660.0),
+            (40.0, 140.0),
+        ]
+        self.inner_bounds: list[Point] = [
+            (240.0, 180.0),
+            (560.0, 180.0),
+            (620.0, 240.0),
+            (620.0, 560.0),
+            (560.0, 620.0),
+            (240.0, 620.0),
+            (180.0, 560.0),
+            (180.0, 240.0),
+        ]
+        self.centerline: list[Point] = [
+            ((ox + ix) * 0.5, (oy + iy) * 0.5)
+            for (ox, oy), (ix, iy) in zip(self.outer_bounds, self.inner_bounds)
         ]
 
-        self.wall_segments: List[Segment] = [(w.p1, w.p2) for w in self.walls]
+        outer_walls = [
+            Wall(self.outer_bounds[i], self.outer_bounds[(i + 1) % len(self.outer_bounds)])
+            for i in range(len(self.outer_bounds))
+        ]
+        inner_walls = [
+            Wall(self.inner_bounds[i], self.inner_bounds[(i + 1) % len(self.inner_bounds)])
+            for i in range(len(self.inner_bounds))
+        ]
+        self.walls: list[Wall] = outer_walls + inner_walls
+        self.wall_segments: list[Segment] = [(w.p1, w.p2) for w in self.walls]
 
         # StopZone sur la ligne droite du haut (véhicules allant vers la droite)
         self.stop_zone = StopZone(x=300.0, y=40.0, width=60.0, height=140.0)
 
         # Checkpoints jalonnant le circuit complet (sens horaire, départ à gauche)
-        self.checkpoints: List[Checkpoint] = [
+        self.checkpoints: list[Checkpoint] = [
             # Départ sur la gauche (vers le haut)
             Checkpoint((40.0, 300.0), (180.0, 300.0)),
             Checkpoint((40.0, 180.0), (180.0, 180.0)),
@@ -194,15 +289,25 @@ class IntersectionMap:
         ]
 
         # Trafic transversal : "Piétons" ou véhicules traversant la ligne droite du haut
-        self.traffic_cars: List[TrafficCar] = [
+        self.traffic_cars: list[TrafficCar] = [
             TrafficCar(start_x=380.0, start_y=-60.0, angle=math.pi/2, speed=2.5, reset_dist=400.0),
             TrafficCar(start_x=450.0, start_y=300.0, angle=-math.pi/2, speed=2.0, reset_dist=400.0)
         ]
+        self.npc_segments: list[Segment] = []
+        self._refresh_npc_segments()
+
+    def _refresh_npc_segments(self):
+        """Met en cache les segments OBB des NPCs une fois par tick."""
+        segments: list[Segment] = []
+        for car in self.traffic_cars:
+            segments.extend(car.get_segments())
+        self.npc_segments = segments
 
     def update_traffic(self, dt: float = 1.0):
-        """Met à jour l'ensemble des véhicules NPC."""
+        """Met à jour l'ensemble des véhicules NPC et rafraîchit leur cache géométrique."""
         for car in self.traffic_cars:
             car.update(dt)
+        self._refresh_npc_segments()
 
 
 class Car:
@@ -233,9 +338,9 @@ class Car:
         self.sensor_range = 150.0  # Portée maximale (150m ou px)
 
         # 15 distances réelles : 5 rayons x [distance_mur, distance_npc, distance_stop]
-        self.semantic_distances: List[float] = [self.sensor_range] * 15
+        self.semantic_distances: list[float] = [self.sensor_range] * 15
         # Points d'impacts pour visualisation
-        self.semantic_impacts: List[Dict[str, Any]] = []
+        self.semantic_impacts: list[dict[str, Any]] = []
 
     def update_physics(self, steering_input: float, accel_input: float):
         """
@@ -271,93 +376,98 @@ class Car:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
 
-    def update_semantic_lidar(self, env: IntersectionMap):
+    def update_semantic_lidar(self, env: IntersectionMap, compute_impacts: bool = False):
         """
         Calcule les 15 distances du LIDAR Sémantique (3 par rayon) :
         - Mur le plus proche
         - NPC le plus proche
         - StopZone la plus proche
         Si rien n'est touché, la distance est self.sensor_range.
+        Les dictionnaires d'impact ne sont construits que si `compute_impacts=True`
+        afin d'éviter des allocations inutiles dans la boucle chaude.
         """
-        car_pos = (self.x, self.y)
-        npc_segments: List[Segment] = []
-        for npc in env.traffic_cars:
-            npc_segments.extend(npc.get_segments())
-
+        ox = self.x
+        oy = self.y
+        max_r = self.sensor_range
+        wall_segments = env.wall_segments
+        npc_segments = env.npc_segments
         stop_segments = env.stop_zone.segments
 
-        new_distances: List[float] = []
-        new_impacts: List[Dict[str, Any]] = []
+        new_distances: list[float] = []
+        new_impacts: list[dict[str, Any]] = []
 
         for offset in self.sensor_angles:
             ray_angle = self.angle + offset
-            ray_end = (
-                self.x + math.cos(ray_angle) * self.sensor_range,
-                self.y + math.sin(ray_angle) * self.sensor_range
-            )
+            dx = math.cos(ray_angle)
+            dy = math.sin(ray_angle)
 
-            min_dist_wall = self.sensor_range
-            wall_hit = ray_end
-
-            min_dist_npc = self.sensor_range
-            npc_hit = ray_end
-
-            min_dist_stop = self.sensor_range
-            stop_hit = ray_end
+            min_dist_wall = max_r
+            min_dist_npc = max_r
+            min_dist_stop = max_r
 
             # 1. Distance Murs
-            for p1, p2 in env.wall_segments:
-                hit = segment_intersection(car_pos, ray_end, p1, p2)
-                if hit:
-                    d = point_distance(car_pos, hit)
-                    if d < min_dist_wall:
-                        min_dist_wall = d
-                        wall_hit = hit
+            for (x1, y1), (x2, y2) in wall_segments:
+                d = ray_segment_intersection_dist(ox, oy, dx, dy, min_dist_wall, x1, y1, x2, y2)
+                if d is not None and d < min_dist_wall:
+                    min_dist_wall = d
 
-            # 2. Distance NPCs
-            for p1, p2 in npc_segments:
-                hit = segment_intersection(car_pos, ray_end, p1, p2)
-                if hit:
-                    d = point_distance(car_pos, hit)
-                    if d < min_dist_npc:
-                        min_dist_npc = d
-                        npc_hit = hit
+            # 2. Distance NPCs (depuis cache OBB)
+            for (x1, y1), (x2, y2) in npc_segments:
+                d = ray_segment_intersection_dist(ox, oy, dx, dy, min_dist_npc, x1, y1, x2, y2)
+                if d is not None and d < min_dist_npc:
+                    min_dist_npc = d
 
             # 3. Distance StopZone
-            for p1, p2 in stop_segments:
-                hit = segment_intersection(car_pos, ray_end, p1, p2)
-                if hit:
-                    d = point_distance(car_pos, hit)
-                    if d < min_dist_stop:
-                        min_dist_stop = d
-                        stop_hit = hit
+            for (x1, y1), (x2, y2) in stop_segments:
+                d = ray_segment_intersection_dist(ox, oy, dx, dy, min_dist_stop, x1, y1, x2, y2)
+                if d is not None and d < min_dist_stop:
+                    min_dist_stop = d
 
-            new_distances.extend([min_dist_wall, min_dist_npc, min_dist_stop])
-            new_impacts.append({
-                "wall": {"x": wall_hit[0], "y": wall_hit[1], "dist": min_dist_wall},
-                "npc": {"x": npc_hit[0], "y": npc_hit[1], "dist": min_dist_npc},
-                "stop": {"x": stop_hit[0], "y": stop_hit[1], "dist": min_dist_stop}
-            })
+            new_distances.extend((min_dist_wall, min_dist_npc, min_dist_stop))
+
+            if compute_impacts:
+                new_impacts.append({
+                    "wall": {"x": ox + dx * min_dist_wall, "y": oy + dy * min_dist_wall, "dist": min_dist_wall},
+                    "npc": {"x": ox + dx * min_dist_npc, "y": oy + dy * min_dist_npc, "dist": min_dist_npc},
+                    "stop": {"x": ox + dx * min_dist_stop, "y": oy + dy * min_dist_stop, "dist": min_dist_stop},
+                })
 
         self.semantic_distances = new_distances
-        self.semantic_impacts = new_impacts
+        if compute_impacts:
+            self.semantic_impacts = new_impacts
 
-    def check_collision(self, env: IntersectionMap) -> bool:
+    def check_collision(self, env: IntersectionMap, prev_pos: Point | None = None) -> bool:
         """
-        Vérifie si la voiture a percuté un mur ou un NPC.
+        Vérifie si la voiture a percuté un mur (géométrie exacte + anti-tunneling balayé)
+        ou un véhicule NPC (boîte englobante orientée exacte).
         Retourne True si collision fatale.
         """
-        # Vérification par rapport aux distances minimales de sécurité du LIDAR
-        # Rayons 0, 3, 6, 9, 12 = Murs ; Rayons 1, 4, 7, 10, 13 = NPCs
-        for i in range(5):
-            d_wall = self.semantic_distances[i * 3]
-            d_npc = self.semantic_distances[i * 3 + 1]
-            if d_wall < self.collision_radius or d_npc < self.collision_radius:
+        if self.x < 0.0 or self.x > env.size or self.y < 0.0 or self.y > env.size:
+            return True
+
+        r_sq = self.collision_radius * self.collision_radius
+        curr_pos = (self.x, self.y)
+        moved = prev_pos is not None and (prev_pos[0] != self.x or prev_pos[1] != self.y)
+
+        # Contrôle exact cercle-segment et segment balayé contre tous les murs
+        for p1, p2 in env.wall_segments:
+            if point_to_segment_distance_sq(self.x, self.y, p1[0], p1[1], p2[0], p2[1]) < r_sq:
+                return True
+            if moved and segment_intersection(prev_pos, curr_pos, p1, p2) is not None:  # type: ignore[arg-type]
                 return True
 
-        # Contrôle direct de proximité avec les centres des NPCs
+        # Contrôle exact cercle-OBB contre tous les véhicules NPC
         for npc in env.traffic_cars:
-            if point_distance((self.x, self.y), (npc.x, npc.y)) < (self.collision_radius + npc.height):
+            if circle_intersects_obb(
+                self.x,
+                self.y,
+                self.collision_radius,
+                npc.x,
+                npc.y,
+                npc.angle,
+                npc.width * 0.5,
+                npc.height * 0.5,
+            ):
                 return True
 
         return False
